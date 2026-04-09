@@ -1,0 +1,15 @@
+# Hyperparameters and constants
+
+MASS = 1500
+EFFICIENCY = 0.7
+
+MAX_SPEED = 30.0
+MAX_DISTANCE = 50.0
+MAX_ACC = 10.0
+
+# Reward weights
+W_ENERGY = 0.0005
+W_JERK = 0.1
+W_COLLISION = 10
+W_OVERBRAKE = 0.5
+W_LATE = 2
