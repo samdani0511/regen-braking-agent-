@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
 import carla
+import os
 from utils.reward import compute_reward
 from config.config import *
 from gymnasium import spaces
@@ -32,6 +33,11 @@ class CarlaRegenEnv(gym.Env):
         # 1️⃣ Connect to CARLA
         self.client = carla.Client('localhost', 2000)
         self.client.set_timeout(20.0)
+
+        self.video_dir = "videos"
+
+        # Create folder if not exists
+        os.makedirs(self.video_dir, exist_ok=True)
     
         print("Connecting to CARLA...")
         time.sleep(0.05)
@@ -95,7 +101,7 @@ class CarlaRegenEnv(gym.Env):
         # ===== VIDEO WRITER (ULTRA STABLE) =====
         import cv2, time
         
-        filename = f"output_{int(time.time())}.avi"
+        filename = os.path.join(self.video_dir, f"output_{int(time.time())}.avi")
         
         # ✅ Use MJPG → MOST COMPATIBLE
         self.video_writer = cv2.VideoWriter(
