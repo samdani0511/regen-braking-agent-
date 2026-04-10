@@ -162,7 +162,9 @@ After training, graphs are saved in `/graphs`:
 
 ### 🎥 Demo Video
 
-## will be added soon
+https://drive.google.com/file/d/1ulkmTZd7qeW0q9_mHmWWex3r0VBJ6L1c/view?usp=sharing
+
+
 
 
 ---
