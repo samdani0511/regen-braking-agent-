@@ -21,7 +21,6 @@ def train():
     from utils.plotter import plot_all
 
     plot_all(env.log_data)
-    env.close()
-
+    env.envs[0].close()
 if __name__ == "__main__":
     train()

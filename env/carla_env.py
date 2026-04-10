@@ -1,9 +1,9 @@
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
 import carla
 from utils.reward import compute_reward
 from config.config import *
+from gymnasium import spaces
 import time
 from navigation.basic_agent import BasicAgent
 
@@ -34,7 +34,7 @@ class CarlaRegenEnv(gym.Env):
         self.client.set_timeout(20.0)
     
         print("Connecting to CARLA...")
-        time.sleep(5)
+        time.sleep(0.05)
         self.stuck_steps = 0
     
         # 2️⃣ Get world
@@ -78,28 +78,43 @@ class CarlaRegenEnv(gym.Env):
         
         spawn_transform = self.vehicle.get_transform()
         
+        self.current_speed = 0.0
+        self.current_regen = 0.0
+        self.current_brake = 0.0
+        self.current_reward = 0.0
         # Place obstacle 20m ahead
         spawn_transform.location.x += 20  
         
         self.obstacle_vehicle = self.world.try_spawn_actor(obstacle_bp, spawn_transform)
         # 5️⃣ NOW attach sensors (after vehicle exists)
-        camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
 
-        camera_transform = carla.Transform(
-            carla.Location(x=-6, z=3),
-            carla.Rotation(pitch=-20)
+    
+        
+        print("📷 Camera initialized")
+        
+        # ===== VIDEO WRITER (ULTRA STABLE) =====
+        import cv2, time
+        
+        filename = f"output_{int(time.time())}.avi"
+        
+        # ✅ Use MJPG → MOST COMPATIBLE
+        self.video_writer = cv2.VideoWriter(
+            filename,
+            cv2.VideoWriter_fourcc(*'MJPG'),
+            20.0,
+            (800, 600)
         )
         
-        self.camera = self.world.spawn_actor(
-            camera_bp,
-            camera_transform,
-            attach_to=self.vehicle
-        )
+        if not self.video_writer.isOpened():
+            raise Exception("❌ VideoWriter failed to open!")
         
-        def camera_callback(image):
-            image.save_to_disk(f"output/{image.frame}.png")
+        print(f"🎥 Recording → {filename}")
         
-        self.camera.listen(camera_callback)
+        # Attach callback
+        # Create camera properly
+        self.setup_camera()
+        
+
         from utils.sensors import attach_collision_sensor, attach_obstacle_sensor
     
         self.collision_sensor, self.collision_data = attach_collision_sensor(self.world, self.vehicle)
@@ -117,11 +132,40 @@ class CarlaRegenEnv(gym.Env):
             dtype=np.float32
         )    
     
-        self.observation_space = gym.spaces.Box(
+        self.observation_space = spaces.Box(
             low=np.array([0, 0, 0, 0], dtype=np.float32),
             high=np.array([1, 1, 1, 1], dtype=np.float32),
             dtype=np.float32
         )
+
+    def setup_camera(self):
+        camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_bp.set_attribute('image_size_x', '800')
+        camera_bp.set_attribute('image_size_y', '600')
+
+        if hasattr(self, "camera") and self.camera is not None:
+            try:
+                self.camera.stop()
+                self.camera.destroy()
+            except:
+                pass
+    
+        camera_transform = carla.Transform(
+            carla.Location(x=-6, z=3),
+            carla.Rotation(pitch=-15)
+        )
+    
+        self.camera = self.world.spawn_actor(
+            camera_bp,
+            camera_transform,
+            attach_to=self.vehicle,
+            attachment_type=carla.AttachmentType.Rigid
+        )
+    
+        from utils.sensors import camera_callback
+        self.camera.listen(lambda image: camera_callback(image, self.video_writer, self))
+    
+        print("📷 Camera attached to NEW vehicle")
 
     def get_speed(self):
         vel = self.vehicle.get_velocity()
@@ -207,7 +251,6 @@ class CarlaRegenEnv(gym.Env):
         transform = self.vehicle.get_transform()
         x = transform.location.x
         y = transform.location.y
-        
         # Energy calculation
         energy = max(0, 0.5 * 1500 * (self.prev_speed**2 - speed**2))
         
@@ -221,30 +264,113 @@ class CarlaRegenEnv(gym.Env):
         self.log_data["y"].append(y)
         terminated = collision == 1
         truncated = False
+        self.current_speed = speed
+        self.current_regen = regen
+        self.current_brake = action[0]
+        self.current_reward = reward
         print(f"Speed: {speed:.2f}, Regen: {regen:.2f}, Distance: {distance:.2f}, Collision: {collision}")
         print(self.vehicle.get_velocity())
+
+        time.sleep(0.05)
     
         return state, reward, terminated, truncated, {}
+
+    
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
     
-        # Destroy old actors
-        self.vehicle.destroy()
-        self.collision_sensor.destroy()
-        self.obstacle_sensor.destroy()
+        print("🔄 Resetting episode...")
     
-        # Respawn everything
-        self.__init__()
+        # 🔥 Destroy OLD camera FIRST
+        try:
+            if self.camera is not None:
+                self.camera.stop()
+                self.camera.destroy()
+        except:
+            pass
+    
+        try:
+            if self.vehicle is not None:
+                self.vehicle.destroy()
+        except:
+            pass
+    
+        try:
+            if self.collision_sensor is not None:
+                self.collision_sensor.destroy()
+        except:
+            pass
+    
+        try:
+            if self.obstacle_sensor is not None:
+                self.obstacle_sensor.destroy()
+        except:
+            pass
+    
+        # Respawn vehicle
+        blueprint_library = self.world.get_blueprint_library()
+        vehicle_bp = blueprint_library.filter('vehicle.*')[0]
+    
+        spawn_points = self.world.get_map().get_spawn_points()
+    
+        self.vehicle = None
+        for sp in spawn_points:
+            self.vehicle = self.world.try_spawn_actor(vehicle_bp, sp)
+            if self.vehicle is not None:
+                print("Vehicle respawned")
+                break
+    
+        # Recreate agent
+        self.agent = BasicAgent(self.vehicle)
+    
+        destination = spawn_points[10].location
+        self.agent.set_destination([destination.x, destination.y, destination.z])
+    
+        # 🔥 REATTACH CAMERA HERE
+        self.setup_camera()
     
         return self.get_state(), {}
     
     def close(self):
-        if hasattr(self, "camera"):
-            self.camera.destroy()
-        if hasattr(self, "collision_sensor"):
-            self.collision_sensor.destroy()
-        if hasattr(self, "obstacle_sensor"):
-            self.obstacle_sensor.destroy()
-        if hasattr(self, "vehicle"):
-            self.vehicle.destroy()
+        print("\n🛑 Cleaning up...")
+    
+        try:
+            if self.camera is not None:
+                self.camera.stop()
+                self.camera.destroy()
+        except:
+            pass
+    
+        try:
+            if self.video_writer is not None:
+                self.video_writer.release()
+                print("🎥 Video saved successfully")
+        except:
+            pass
+    
+        try:
+            if self.vehicle is not None:
+                self.vehicle.destroy()
+        except:
+            pass
+    
+        try:
+            if self.obstacle_vehicle is not None:
+                self.obstacle_vehicle.destroy()
+        except:
+            pass
+    
+        try:
+            if self.collision_sensor is not None:
+                self.collision_sensor.destroy()
+        except:
+            pass
+    
+        try:
+            if self.obstacle_sensor is not None:
+                self.obstacle_sensor.destroy()
+        except:
+            pass
+    
+        print("✅ Cleanup complete")

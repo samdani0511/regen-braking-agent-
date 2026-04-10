@@ -18,6 +18,7 @@ def run():
 
         if done:
             obs, _ = env.reset()
+    env.close()
 
 if __name__ == "__main__":
     run()
