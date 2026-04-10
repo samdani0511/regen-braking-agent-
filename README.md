@@ -148,20 +148,39 @@ After training, graphs are saved in `/graphs`:
 ### 📊 Training Graphs
 
 #### Speed Graph
+
 <img width="640" height="480" alt="speed" src="https://github.com/user-attachments/assets/e0ea3f0b-27f6-41ad-a4c6-702075ee1068" />
+
 #### Distance Graph
+
 <img width="640" height="480" alt="distance" src="https://github.com/user-attachments/assets/ec156ba3-693d-4dcf-9112-6df8409ac563" />
+
 #### Regen Braking
+
 <img width="640" height="480" alt="regen" src="https://github.com/user-attachments/assets/0b95861f-c341-4eed-8c3a-bdd90250aebe" />
+
 #### Reward Curve
+
 <img width="640" height="480" alt="reward" src="https://github.com/user-attachments/assets/63de2a0a-349a-4290-bd56-28874382e95f" />
+
 #### Energy Recovery
+
 <img width="640" height="480" alt="energy" src="https://github.com/user-attachments/assets/8fa485a6-877f-42fb-88bd-22cacfefeabc" />
+
 
 ---
 
+
+
 ### 🎥 Demo Video
 
+https://github.com/user-attachments/assets/f452a077-6fc9-4a84-b772-8e17e7bfaeaa
+
+
+
+
+
+## Full video
 https://drive.google.com/file/d/1ulkmTZd7qeW0q9_mHmWWex3r0VBJ6L1c/view?usp=sharing
 
 
